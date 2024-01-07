@@ -1,0 +1,125 @@
+---
+title: "Assignment2"
+author: "Yunzhi Chen 32051018"
+date: "`r Sys.Date()`"
+output: 
+  bookdown::html_document2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      eval = TRUE,
+                      message = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      fig.align = "center")
+```
+
+```{r libraries, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(fpp3)
+library(patchwork)
+library(latex2exp)
+```
+
+```{r data}
+# Use your student ID as the seed
+set.seed(32051018)
+myseries <- aus_retail %>%
+  # Remove discontinued series
+  filter(!(`Series ID` %in% c("A3349561R","A3349883F","A3349499L","A3349902A",
+                        "A3349588R","A3349763L","A3349372C","A3349450X",
+                        "A3349679W","A3349378T","A3349767W","A3349451A"))) %>%
+  # Select a series at random
+  filter(`Series ID` == sample(`Series ID`,1))
+```
+
+# Plot your time series using the autoplot() command. What do you learn from the plot?
+```{r figure1, fig.align = 'center', fig.cap = "The trend of the turnover"}
+ myseries %>% 
+  autoplot(Turnover) 
+
+```
+
+From graph \@ref(fig:figure1) we can see in general, the turnover of Australian retail has an increasing trend. The series appears to have a seasonal pattern. The variability in the data appears proportional to the amount of turnover over the time period. In 2006 and 2015 there was a significant decrease in turnover compared to the previous 1 month and then a gradual increase over time.
+
+# Plot your time series using the gg_season() command. What do you learn from the plot?
+```{r figure2, fig.align = 'center', fig.cap = "The seasonal plot of the turnover"}
+myseries %>%
+  gg_season(Turnover)
+```
+
+The seasonal pattern of turnover(figure \@ref(fig:figure2)) appears to vary between each year. November is basically the time of the year when turnover surges, most probably because of the Christmas holiday. For the last few years, the annual turnover has more fluctuation, which is different from a decade or even two decades ago.
+
+# Plot your time series using the gg_subseries() command. What do you learn from the plot?
+```{r figure3, fig.align = 'center', fig.cap = "The subseries plot of the turnover"}
+myseries %>%
+  gg_subseries(Turnover)
+```
+
+Figure \@ref(fig:figure3) shows that there is a strong trend in all months, with the largest trend in December. On average, from August to November, the means of the turnover of Australian retail from 1990-2020 are similar.
+
+# Find an appropriate Box-Cox transformation for your data and explain why you have chosen the particular transformation parameter λ.
+```{r}
+p1 <- myseries %>% 
+  autoplot(Turnover) +
+  labs(title = "Original plot")
+
+p2 <- myseries %>% 
+  autoplot(log(Turnover)) +
+  labs(title = "Logarithmic transformation")
+
+p3 <- myseries %>% 
+  autoplot(box_cox(Turnover, 0.5)) +
+  labs(title = "lambda = 0.5")
+
+p4 <- myseries %>% 
+  autoplot(box_cox(Turnover, 0.3)) +
+  labs(title = "lambda = 0.3")
+
+p5 <- myseries %>% 
+  autoplot(box_cox(Turnover, 0.1)) +
+  labs(title = "lambda = 0.1")
+
+p1/p2
+
+p3/p4/p5
+```
+The above graph indicates that when lambda equals 1, the variation becomes smaller over time, which means the transformation is too strong, so the best value of the lambda is within the range of (0,1). Then I tested the value of lambda equals 0.5, 0.3, and 0.1 respectively to see if the variation would get constant over time, and I found that when λ = 0.1, the transformation seemed to be the most appropriate. After that I used the "Guerrero“ feature function to check the best value of lambda and got the best result of λ = 0.088. Figure \@ref(fig:figure4) is the plot of the appropriate Box-Cox transformation for my data using the transformation parameter λ = 0.088.
+
+```{r figure4, fig.align = 'center', fig.cap = "The plot of the turnover after appropriate transformation"}
+lambda <- myseries %>%
+  features(Turnover, features = guerrero) %>%
+  pull(lambda_guerrero)
+
+ myseries %>%
+  autoplot(box_cox(Turnover, lambda)) +
+  labs(y = "",
+       title = latex2exp::TeX(paste0(
+         "Transformed gas production with $\\lambda$ = ",
+         round(lambda,3))))
+
+```
+
+# Produce a plot of an STL decomposition of the transformed data. What do you learn from the plot?
+```{r figure5, fig.align = 'center', fig.cap = "The subseries plot of the transformed turnover"}
+myseries %>%
+  model(
+    STL(box_cox(Turnover, lambda) ~ trend(window = 35) +
+          season(window = 13), 
+        robust = TRUE)) %>%
+  components() %>%
+  gg_subseries()
+```
+
+```{r figure6, fig.align = 'center', fig.cap = "The plot of STL decomposition"}
+myseries %>%
+  model(
+    STL(box_cox(Turnover, lambda) ~ trend(window = 35) +
+          season(window = 13), 
+        robust = TRUE)) %>%
+  components() %>%
+  autoplot()
+```
+
+Combine with the sub-series plot(figure \@ref(fig:figure5)) and the graph \@ref(fig:figure6), they illustrate that the trend fluctuated over time and the seasonality of the turnover has changed, the peak is in August.
